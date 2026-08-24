@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#07101f" />
+  <title>Virtual Sammy Theaters 1.2</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <section id="setupScreen" class="overlay setup-screen">
+    <div class="setup-card">
+      <div class="eyebrow">VIRTUAL SAMMY THEATERS</div>
+      <h1>Version 1.2 — The Immersion Update</h1>
+      <p class="lead">Set up your screening before entering the lobby. Choose a file you have permission to play, a presentation format, an auditorium, graphics quality, and your seat.</p>
+
+      <div class="setup-grid">
+        <label class="field-card">
+          <span>1. Screening file</span>
+          <input id="setupFile" type="file" accept="video/*" />
+          <small id="setupFileName">No file loaded yet</small>
+        </label>
+
+        <label class="field-card">
+          <span>2. Auditorium</span>
+          <select id="setupAuditorium">
+            <option value="1">Auditorium 1</option>
+            <option value="2">Auditorium 2</option>
+            <option value="3">Auditorium 3</option>
+          </select>
+          <small>Each auditorium can hold its own local screening.</small>
+        </label>
+
+        <label class="field-card">
+          <span>3. Premium format</span>
+          <select id="setupFormat"></select>
+          <small id="formatDescription"></small>
+        </label>
+
+        <label class="field-card">
+          <span>4. Graphics</span>
+          <select id="setupGraphics">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high" selected>High</option>
+            <option value="hd">HD</option>
+          </select>
+          <small>HD uses higher pixel density, shadows and richer lighting.</small>
+        </label>
+      </div>
+
+      <div class="seat-kiosk-block">
+        <div class="seat-kiosk-title">
+          <div>
+            <strong>5. Seat Selection Kiosk</strong>
+            <small>Choose your seat before entering the lobby.</small>
+          </div>
+          <div id="selectedSeatBadge" class="badge">No seat selected</div>
+        </div>
+        <div class="screen-label">SCREEN</div>
+        <div id="setupSeatMap" class="seat-map"></div>
+      </div>
+
+      <div class="setup-actions">
+        <label class="toggle-line"><input id="reducedMotionSetup" type="checkbox" /> Reduced motion</label>
+        <button id="enterTheaterButton" class="primary-button">ENTER THEATER</button>
+      </div>
+      <p class="legal-note">Local media stays in your browser session. Branded formats such as RealD, D-BOX and IMAX are represented here only as concept/simulation modes; real branded implementations require permission and licensing.</p>
+    </div>
+  </section>
+
+  <div id="hud" class="hud hidden-until-start">
+    <strong>🎬 Virtual Sammy Theaters 1.2</strong>
+    <span id="hudZone">Main Lobby</span>
+    <span id="hudScreening">No screening loaded</span>
+    <span id="hudFormat">Standard Digital</span>
+    <span id="hudSeat">Seat: —</span>
+  </div>
+
+  <div id="toolbar" class="toolbar hidden-until-start">
+    <button data-open="screenings">🎞️ Screenings</button>
+    <button data-open="concessions">🍿 Concessions</button>
+    <button data-open="map">🗺️ Map</button>
+    <button data-open="online">🌐 Servers</button>
+    <button data-open="settings">⚙️ Settings</button>
+    <button data-open="fourD">💺 4DS Lab</button>
+    <button data-open="widescreen">🖼️ Widescreen</button>
+    <button data-open="updates">✨ What’s New</button>
+  </div>
+
+  <div id="crosshair" class="crosshair hidden-until-start"></div>
+  <div id="interactionPrompt" class="interaction-prompt hidden-until-start">Explore the lobby</div>
+  <div id="toast" class="toast hidden-until-start">Welcome!</div>
+
+  <div id="mobileControls" class="mobile-controls hidden-until-start">
+    <div id="joystickArea" class="joystick-area">
+      <div class="joystick-base"><div id="joystickStick" class="joystick-stick"></div></div>
+    </div>
+    <div id="lookZone" class="look-zone"></div>
+    <button id="mobileInteract" class="interact-button">INTERACT</button>
+  </div>
+
+  <div id="seatedControls" class="seated-controls">
+    <button id="playPauseButton">▶ Play</button>
+    <button id="previewEffectsButton">🌪️ Preview 4DS</button>
+    <button id="leaveSeatButton">🚶 Leave Seat</button>
+  </div>
+
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-panel">
+      <button id="closeModal" class="close-button" aria-label="Close">×</button>
+
+      <section id="screeningsPanel" class="panel-page">
+        <h2>🎞️ Screening Control Center</h2>
+        <p>Load a different local video into each auditorium, select its format, and manage presentation effects.</p>
+        <div id="screeningManager" class="screening-manager"></div>
+      </section>
+
+      <section id="concessionsPanel" class="panel-page">
+        <h2>🍿 Working Concession Stand</h2>
+        <p>Build a virtual order, place it, and pick it up at the counter.</p>
+        <div id="concessionGrid" class="concession-grid"></div>
+        <div class="cart-bar">
+          <div><strong>Cart:</strong> <span id="cartSummary">Empty</span></div>
+          <button id="placeOrderButton" class="primary-button">PLACE VIRTUAL ORDER</button>
+        </div>
+        <div id="orderStatus" class="order-status">No active order.</div>
+      </section>
+
+      <section id="mapPanel" class="panel-page">
+        <h2>🗺️ Theater Map</h2>
+        <div class="map-card">
+          <div class="map-floor">
+            <strong>1ST FLOOR</strong>
+            <span>Entrance / Seat Kiosks</span>
+            <span>Main Lobby</span>
+            <span>Concessions</span>
+            <span>Screening Control</span>
+            <span>Auditoriums 1–3</span>
+            <span>Elevator to Arcade</span>
+          </div>
+          <div class="map-floor">
+            <strong>2ND FLOOR</strong>
+            <span>Sammy Theaters Arcade</span>
+            <span>Original Motion Simulators</span>
+            <span>Original Rides</span>
+            <span>Original Playable Games</span>
+            <span>Expansion Area</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="onlinePanel" class="panel-page">
+        <h2>🌐 Online Screening Servers</h2>
+        <div class="server-status warning">
+          <strong>Backend required for real internet multiplayer.</strong>
+          <p>GitHub Pages can host the theater itself, but live room codes, shared seats, player positions and synchronized playback need a separate realtime backend. This build includes the server UI and a same-browser tab synchronization test so the frontend is ready for a backend later.</p>
+        </div>
+        <div class="server-grid">
+          <label>Room code <input id="roomCode" maxlength="12" value="SAMMY11" /></label>
+          <button id="joinLocalRoom" class="primary-button">START LOCAL SYNC TEST</button>
+          <button id="readyButton">READY: NO</button>
+        </div>
+        <div id="serverLog" class="server-log">Not connected.</div>
+      </section>
+
+      <section id="settingsPanel" class="panel-page">
+        <h2>⚙️ Accessibility & Performance</h2>
+        <div class="settings-grid">
+          <label>Graphics quality
+            <select id="graphicsSetting">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="hd">HD</option>
+            </select>
+          </label>
+          <label class="toggle-line"><input id="reducedMotion" type="checkbox" /> Reduced motion</label>
+          <label class="toggle-line"><input id="reducedFlashing" type="checkbox" /> Reduced flashing</label>
+          <label>UI scale <input id="uiScale" type="range" min="85" max="130" value="100" /></label>
+          <label>Master volume <input id="masterVolume" type="range" min="0" max="100" value="80" /></label>
+        </div>
+      </section>
+
+
+      <section id="fourDPanel" class="panel-page">
+        <h2>💺 Sammy’s 4DS Control Lab</h2>
+        <p>Automatic browser-safe 4DS simulation for Virtual Sammy Theaters 1.2. Physical motion-seat hardware is not controlled by this static website.</p>
+
+        <div class="fourD-status-row">
+          <label class="toggle-line"><input id="automatic4D" type="checkbox" checked /> Automatic 4DS action detection</label>
+          <div id="fourDStateBadge" class="badge">4DS READY</div>
+        </div>
+
+        <div class="master-intensity-card">
+          <div>
+            <strong>Master 4D Intensity</strong>
+            <span id="master4DLabel">75% — HIGH</span>
+          </div>
+          <input id="master4DIntensity" type="range" min="0" max="100" value="75" step="1" />
+          <div class="intensity-scale"><span>OFF</span><span>LOW</span><span>MEDIUM</span><span>HIGH</span><span>MAXIMUM</span></div>
+        </div>
+
+        <div id="effectSliders" class="effects-control-grid">
+          <label>Seat Motion <span id="seatMotionValue">100%</span><input data-effect="seatMotion" type="range" min="0" max="100" value="100"></label>
+          <label>Seat Vibration <span id="vibrationValue">100%</span><input data-effect="vibration" type="range" min="0" max="100" value="100"></label>
+          <label>Wind <span id="windValue">95%</span><input data-effect="wind" type="range" min="0" max="100" value="95"></label>
+          <label>Air Bursts <span id="airBurstsValue">90%</span><input data-effect="airBursts" type="range" min="0" max="100" value="90"></label>
+          <label>Mist / Water <span id="mistValue">80%</span><input data-effect="mist" type="range" min="0" max="100" value="80"></label>
+          <label>Fog <span id="fogValue">75%</span><input data-effect="fog" type="range" min="0" max="100" value="75"></label>
+          <label>Snow <span id="snowValue">85%</span><input data-effect="snow" type="range" min="0" max="100" value="85"></label>
+          <label>Temperature <span id="temperatureValue">70%</span><input data-effect="temperature" type="range" min="0" max="100" value="70"></label>
+          <label>Scents <span id="scentsValue">60%</span><input data-effect="scents" type="range" min="0" max="100" value="60"></label>
+          <label>Dynamic Lighting <span id="lightingValue">90%</span><input data-effect="lighting" type="range" min="0" max="100" value="90"></label>
+          <label>Directional Haptics <span id="hapticsValue">95%</span><input data-effect="haptics" type="range" min="0" max="100" value="95"></label>
+          <label>Environmental Rumble <span id="rumbleValue">90%</span><input data-effect="rumble" type="range" min="0" max="100" value="90"></label>
+        </div>
+
+        <div class="fourD-actions">
+          <button id="test4DButton" class="primary-button">TEST 4DS EFFECTS</button>
+          <button id="neutral4DButton">RETURN SEATS TO NEUTRAL</button>
+          <button id="stop4DButton" class="danger-button">STOP 4DS MOTION</button>
+        </div>
+
+        <div class="server-status warning">
+          <strong>Safety note</strong>
+          <p>“Maximum” means maximum of this virtual simulator’s built-in safe range. Reduced Motion and Reduced Flashing still override stronger effects. Real physical motion seats require professionally engineered hardware, independent safety controls, and an approved controller.</p>
+        </div>
+      </section>
+
+      <section id="widescreenPanel" class="panel-page">
+        <h2>🖼️ Working AI Outpaint Studio</h2>
+        <p>Generate real AI-expanded surroundings from an image you own or a captured frame from an authorized/local screening. The live movie remains the protected center screen; the generated result fills the extra theater area around it.</p>
+
+        <div class="ai-outpaint-grid">
+          <label>AI backend URL
+            <input id="outpaintApiUrl" type="url" inputmode="url" placeholder="https://your-backend.example/api/outpaint" />
+            <small>When the whole project is hosted with its serverless API, <code>/api/outpaint</code> is used automatically.</small>
+          </label>
+          <div class="ai-backend-actions">
+            <button id="saveOutpaintApiUrl">SAVE BACKEND URL</button>
+            <button id="testOutpaintBackend">TEST AI CONNECTION</button>
+          </div>
+
+          <label>Outpaint source
+            <select id="outpaintSourceMode">
+              <option value="video" selected>Current movie frame</option>
+              <option value="image">Uploaded still image</option>
+            </select>
+          </label>
+          <label>Still image (optional)
+            <input id="outpaintImageFile" type="file" accept="image/png,image/jpeg,image/webp" />
+          </label>
+
+          <label>Target presentation mode
+            <select id="widescreenRatio">
+              <option value="185">1.85:1</option>
+              <option value="190">1.90:1</option>
+              <option value="200">2.00:1</option>
+              <option value="239" selected>2.39:1</option>
+              <option value="143">1.43:1</option>
+              <option value="270">270° Immersive</option>
+              <option value="360">360° Immersive</option>
+            </select>
+          </label>
+
+          <label>AI quality
+            <select id="outpaintQuality">
+              <option value="low">Low / faster</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+
+          <label class="ai-prompt-field">Extra scene guidance
+            <textarea id="outpaintPrompt" rows="3" maxlength="500" placeholder="Optional: continue the same room, landscape, lighting and perspective naturally."></textarea>
+          </label>
+          <label class="toggle-line"><input id="protectOriginalFrame" type="checkbox" checked /> Keep the original movie/image as the protected center</label>
+        </div>
+
+        <div id="widescreenPreview" class="widescreen-preview mode-239">
+          <div id="originalFramePreview" class="original-frame-preview">PROTECTED ORIGINAL FRAME</div>
+          <div class="generated-edge left-edge">AI OUTPAINT</div>
+          <div class="generated-edge right-edge">AI OUTPAINT</div>
+          <div class="generated-edge top-edge">AI OUTPAINT</div>
+          <div class="generated-edge rear-edge">AI REAR EXTENSION</div>
+          <div id="presentationModeBadge" class="presentation-mode-badge">2.39:1</div>
+        </div>
+
+        <div class="ai-result-stage">
+          <div class="ai-result-empty" id="outpaintEmptyState">No AI outpaint generated yet.</div>
+          <img id="outpaintResultImage" alt="Generated AI outpaint result" hidden />
+        </div>
+
+        <div class="fourD-actions">
+          <button id="requestOutpaintButton" class="primary-button">GENERATE REAL AI OUTPAINT</button>
+          <button id="applyOutpaintButton" disabled>APPLY TO THEATER</button>
+          <button id="clearOutpaintButton">CLEAR AI OUTPAINT</button>
+          <button id="restoreRatioButton">RESTORE ORIGINAL SCREEN</button>
+        </div>
+        <div id="outpaintStatus" class="server-log">AI outpaint is ready for a secure backend connection. It processes only the frame/image you choose, not the entire local movie file.</div>
+        <div class="server-status warning">
+          <strong>Video limitation</strong>
+          <p>GPT-Image-2 edits images, not live video. Version 1.2 therefore captures the current movie frame, generates real AI surroundings from that frame, and keeps the moving movie itself untouched in the center. Regenerate when you want the surroundings updated for a new scene.</p>
+        </div>
+      </section>
+
+      <section id="updatesPanel" class="panel-page">
+        <h2>✨ Virtual Sammy Theaters 1.2</h2>
+        <div class="update-list">
+          <article><strong>Automatic Sammy’s 4DS Seats</strong><span>Virtual auditorium seats now move, shake, vibrate and tilt automatically with action cues.</span></article>
+          <article><strong>Advanced 4D Intensity</strong><span>Master OFF–MAXIMUM control plus individual sliders for motion, vibration, wind, air bursts, mist, fog, snow, temperature, scents, lighting, haptics and rumble.</span></article>
+          <article><strong>Automatic Action Detection</strong><span>Low-resolution local video sampling estimates visual action without uploading the movie.</span></article>
+          <article><strong>4DS Safety Controls</strong><span>Motion stop, neutral-seat control, reduced-motion override and reduced-flashing override.</span></article>
+          <article><strong>Working AI Outpaint Studio</strong><span>Real GPT-Image-2 image editing can generate expanded scene surroundings from a still image or the current local movie frame when the secure backend is configured.</span></article>
+          <article><strong>Theatrical AI Outpaint Modes</strong><span>1.85:1, 1.90:1, 2.00:1, 2.39:1, 1.43:1, 270° Immersive and 360° Immersive.</span></article>
+          <article><strong>Immersion Update Foundation</strong><span>Version 1.2 keeps the 1.1 screening, concessions, arcade, accessibility and auditorium systems while adding the new immersion controls.</span></article>
+        </div>
+      </section>
+
+      <section id="arcadePanel" class="panel-page">
+        <h2>🕹️ Sammy Theaters Arcade — 2nd Floor</h2>
+        <p>All machines in this build are original browser mini-games or simulator rides.</p>
+        <div id="arcadeGameGrid" class="arcade-grid"></div>
+      </section>
+    </div>
+  </div>
+
+  <div id="arcadeGameOverlay" class="arcade-game-overlay">
+    <div class="arcade-game-shell">
+      <div class="arcade-topbar">
+        <div><strong id="arcadeTitle">Arcade Game</strong><span id="arcadeScore">Score: 0</span></div>
+        <button id="exitArcadeGame">EXIT GAME</button>
+      </div>
+      <canvas id="arcadeCanvas" width="960" height="540"></canvas>
+      <div id="arcadeInstructions" class="arcade-instructions"></div>
+      <div class="arcade-mobile-buttons">
+        <button data-arcade-key="left">◀</button>
+        <button data-arcade-key="action">ACTION</button>
+        <button data-arcade-key="right">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="countdownOverlay" class="countdown-overlay"><div id="countdownNumber">5</div></div>
+
+
+  <div id="fourDOverlay" class="fourD-overlay" aria-hidden="true">
+    <div id="windOverlay" class="effect-layer wind-overlay"></div>
+    <div id="fogOverlay" class="effect-layer fog-overlay"></div>
+    <div id="mistOverlay" class="effect-layer mist-overlay"></div>
+    <div id="snowOverlay" class="effect-layer snow-overlay"></div>
+    <div id="temperatureOverlay" class="effect-indicator">TEMP</div>
+    <div id="scentOverlay" class="effect-indicator scent-indicator">SCENT</div>
+  </div>
+
+  <video id="screeningVideo1" playsinline preload="metadata"></video>
+  <video id="screeningVideo2" playsinline preload="metadata"></video>
+  <video id="screeningVideo3" playsinline preload="metadata"></video>
+
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
