@@ -1,0 +1,6 @@
+{
+  "name": "virtual-sammy-theaters-1-2-ai-outpaint",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" }
+}
